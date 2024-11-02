@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: nginx-blog
+    restart: unless-stopped
+    tty: true
+    ports:
+      - "8000:80"
+    dns:
+      - 8.8.8.8
+      - 4.4.4.4
+    volumes:
+      - .:/var/www/html
+      - .docker/nginx/conf.d/:/etc/nginx/conf.d/
+    networks:
+      - app-network
+
+  app:
+    container_name: blog
+    build:
+      context: .
+      dockerfile: .docker/php/Dockerfile
+    volumes:
+      - .:/var/www/html
+      - .docker/php/conf.d/local.ini:/usr/local/etc/php/conf.d/local.ini
+      - .docker/php/conf.d/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+      - .docker/php/conf.d/error_reporting.ini:/usr/local/etc/php/conf.d/error_reporting.ini
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    mem_limit: 1024m
+    mem_reservation: 512M
+    depends_on:
+      - mysql
+    networks:
+      - app-network
+
+  mysql:
+    container_name: mysql-blog
+    platform: linux/x86_64
+    build:
+      context: .
+      dockerfile: .docker/mysql/Dockerfile
+    volumes:
+      - .docker/mysql/init:/docker-entrypoint-initdb.d
+      - .docker/mysql/my.conf:/etc/mysql/mysqld.cnf
+    mem_limit: 1024m
+    mem_reservation: 512M
+    ports:
+      - "3313:3306"
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_DATABASE: blog
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    networks:
+      - app-network
+
+  phpmyadmin:
+    container_name: phpmyadmin-blog
+    build:
+      context: .
+      dockerfile: .docker/phpmyadmin/Dockerfile
+    links:
+      - mysql:mysql
+    mem_limit: 1024m
+    mem_reservation: 512M
+    ports:
+      - 8003:80
+    environment:
+      USER: root
+      MYSQL_HOST: mysql
+      MYSQL_USER: root
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+    depends_on:
+      - mysql
+    networks:
+      - app-network
+
+  supervisor:
+    container_name: supervisor-blog
+    build:
+      context: .
+      dockerfile: .docker/supervisor/Dockerfile
+    volumes:
+      - .:/var/www/html
+    mem_limit: 1024m
+    mem_reservation: 512M
+    ports:
+      - 9001:9001
+    networks:
+      - app-network
+
+  redis:
+    container_name: redis-blog
+    build: .docker/redis
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: "bridge"
