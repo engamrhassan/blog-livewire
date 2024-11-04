@@ -12,7 +12,6 @@
 
                 <button class=" {{ $sort === 'asc' ? ' text-gray-900 py-4 border-b border-gray-700' :'text-gray-500 py-4' }}"
                         wire:click="setSort('asc')">Oldest</button>
-
             </div>
         </div>
         <div class="py-4">
